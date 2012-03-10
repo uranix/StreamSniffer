@@ -67,7 +67,7 @@ struct Fragment
 			return false;
 		return sz < o.sz;
 	}
-	bool has(index ptr)
+	bool has(index ptr) const
 	{
 		return (!less(ptr, start)) && less(ptr, start+sz);
 	}
