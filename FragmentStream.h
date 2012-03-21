@@ -34,12 +34,16 @@ struct Fragment
 	size_t sz;
 	static bool less(index i, index j)
 	{
+		// less(i, j) ~ i < j
 		// less(i, j) = less(i+c, j+c)
 		// less(i, j) = less(0, j-i);
 		// !less(a,b) && !less(b,a) is not the same (a == b)
 		// Ex. b = 0x80000000 + a. less(a,b) = less(b,a) = false. a!=b = true
 		index r = j-i;
 		return (r < 0x80000000UL) && (r > 0);
+	}
+	static bool Less(const Fragment &o1, const Fragment &o2) {
+		return o1.operator<(o2);
 	}
 	Fragment(byte *_buf, index _start, size_t _sz)
 	{
@@ -73,9 +77,18 @@ struct Fragment
 	}
 };
 
+struct Prior {
+	index rdptr;
+	Prior(index _rdptr) : rdptr(_rdptr) {}
+	bool operator()(const Fragment &f) {
+		return !Fragment::less(rdptr, f.start + f.sz);
+	}
+};
+
 class FragmentStream
 {
-	std::multiset<Fragment> fragments;
+	//std::multiset<Fragment> fragments;
+	std::list<Fragment> fragments;
 	bool closed;
 	bool error;
 	index rdptr;
@@ -105,9 +118,11 @@ public:
 	{
 		if (closed)
 			return -1;
+		if (!sz)
+			return 0;
 		fraglock.down();
 		if (Fragment::less(rdptr, offs+sz))
-			fragments.insert(Fragment(data, offs, sz));
+			fragments.push_back(Fragment(data, offs, sz));
 		lag_size = std::max(lag_size, (int)fragments.size());
 		fraglock.up();
 		if (push)
@@ -123,6 +138,7 @@ public:
 			if (error)
 				return (size_t)-1;
 			fraglock.down();
+			/*
 			std::multiset<Fragment>::iterator i = fragments.begin();
 			if ((i == fragments.end()) && closed)
 			{
@@ -143,6 +159,23 @@ public:
 					if (i == fragments.end())
 						break;
 				}
+				if (0 == max)
+					break;
+			}
+			*/
+			while(1) {
+				fragments.remove_if(Prior(rdptr));
+				fragments.sort(Fragment::Less);
+				if (fragments.empty())
+					break;
+				std::list<Fragment>::iterator i = fragments.begin();
+				if (!i->has(rdptr))
+					break;
+				size_t u = rdptr - i->start;
+				size_t cp = std::min(i->sz - u, max);
+				memcpy(buf+(rdptr-rdold), i->buf+u, cp);
+				rdptr += cp;
+				max -= cp;
 				if (0 == max)
 					break;
 			}
