@@ -31,14 +31,35 @@ DWORD WINAPI threadEp(LPVOID args)
 	return 0;
 }
 
-#define N 50
+#define N 3
 
 int main()
 {
 	std::list<SnifferDev> devs = SnifferDev::getDevices();
-	SockAddr dst(0,0), src(0,20);
+	SockAddr dst(0,0), src(0,17778);
 
-	Sniffer s(*devs.begin(), dst, src);
+	for (std::list<SnifferDev>::iterator i = devs.begin(); i != devs.end(); ++i) {
+		if (i->addrs.empty())
+			continue;
+		if (i->addrs.begin()->addr->sa_family != AF_INET)
+			continue;
+		std::cout 
+			<< (unsigned int)((sockaddr_in *)(i->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b1 << "."
+			<< (unsigned int)((sockaddr_in *)(i->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b2 << "."
+			<< (unsigned int)((sockaddr_in *)(i->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b3 << "."
+			<< (unsigned int)((sockaddr_in *)(i->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b4 << std::endl;
+	}
+
+	std::list<SnifferDev>::iterator d = devs.begin();
+	d++;
+
+	std::cout << "Sniffing on "
+		<< (unsigned int)((sockaddr_in *)(d->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b1 << "."
+		<< (unsigned int)((sockaddr_in *)(d->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b2 << "."
+		<< (unsigned int)((sockaddr_in *)(d->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b3 << "."
+		<< (unsigned int)((sockaddr_in *)(d->addrs.begin()->addr))->sin_addr.S_un.S_un_b.s_b4 << std::endl;
+
+	Sniffer s(*d, dst, src);
 	HANDLE h[N];
 	for (int naccept=0; naccept < N; naccept++) 
 	{

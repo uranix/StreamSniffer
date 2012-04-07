@@ -1,3 +1,6 @@
+Release/
+Debug/
+ipch/
 *.ncb
 *.suo
 *.user

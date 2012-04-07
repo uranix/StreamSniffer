@@ -143,7 +143,7 @@ class Sniffer
 		return ((h & 0xff) << 24) | ((h & 0xff00) << 8) | 
 			((h & 0xff0000) >> 8) | (h >> 24);
 	}
-	void cb(pcap_pkthdr *hdr, const u_char *pkt)
+	void cb(pcap_pkthdr *, const u_char *pkt)
 	{
 		Frame *f = (Frame *)pkt;
 		TCPHdr *t = (TCPHdr *)((byte *)&(f->ip_hdr)+(f->ip_hdr.hlen << 2));
@@ -193,42 +193,52 @@ class Sniffer
 				connTableI.find(c)->second.close();
 		}
 	}
+	void __Sniffer(SnifferDev dev, char *rule) {
+		char err[1024];
+		stop = false;
+		p = pcap_open_live(dev.name.c_str(), 65536, 0, 100, err);
+		if (!p)
+			throw err;
+		bpf_program bpf;
+		int ret = pcap_compile(p, &bpf, rule, 0, 0);
+		if (ret)
+			throw rule;
+		pcap_setfilter(p, &bpf);
+		captureArgs *args = new captureArgs;
+		args->p = p;
+		args->_this = this;
+		capThr = CreateThread(0, 0, captureThread, args, 0, 0);
+	}
 public:
 	bool stop;
 	Sniffer(SnifferDev dev, SockAddr srv, SockAddr cli)
 	{
-		stop = false;
 		char r1[64]="";
 		char r2[64]="";
 		char r3[64]="";
 		char r4[64]="";
 		char rule[1024];
-		char err[1024];
 		if (srv.addr != 0)
 		{
 			unsigned char *ip = (unsigned char *)&srv.addr;
-			sprintf(r1, " and dst host %u.%u.%u.%u", ip[3], ip[2], ip[1], ip[0]);
+			sprintf(r1, " and dst host %u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
 		}
 		if (cli.addr != 0)
 		{
 			unsigned char *ip = (unsigned char *)&cli.addr;
-			sprintf(r2, " and src host %u.%u.%u.%u", ip[3], ip[2], ip[1], ip[0]);
+			sprintf(r2, " and src host %u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
 		}
 		if (srv.port != 0)
 			sprintf(r3, " and dst port %u", srv.port);
 		if (cli.port != 0)
 			sprintf(r4, " and src port %u", cli.port);
 		sprintf(rule, "ip and tcp%s%s%s%s", r1, r2, r3, r4);
-		p = pcap_open_live(dev.name.c_str(), 65536, 0, 100, err);
-		if (!p)
-			throw err;
-		bpf_program bpf;
-		int ret = pcap_compile(p, &bpf, rule, 0, 0);
-		pcap_setfilter(p, &bpf);
-		captureArgs *args = new captureArgs;
-		args->p = p;
-		args->_this = this;
-		capThr = CreateThread(0, 0, captureThread, args, 0, 0);
+		std::cout << "[DEBUG] Rule: " << rule << std::endl;
+		__Sniffer(dev, rule);
+	}
+	Sniffer(SnifferDev dev, char *rule) 
+	{
+		__Sniffer(dev, rule);
 	}
 	SnifferSocket accept(bool incomplete)
 	{
